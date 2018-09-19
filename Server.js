@@ -1,26 +1,51 @@
-﻿require('rootpath')();
-const express = require('express');
-const app = express();
-const cors = require('cors');
-const bodyParser = require('body-parser');
-const jwt = require('_helpers/jwt');
-const errorHandler = require('_helpers/error-handler');
+var express = require('express');
+var ejs = require('ejs');
+var path = require('path');
+var app = express();
+var bodyParser = require('body-parser');
+var mongoose = require('mongoose');
+var session = require('express-session');
+var MongoStore = require('connect-mongo')(session);
 
-app.use(bodyParser.urlencoded({ extended: false }));
+mongoose.connect('mongodb://localhost/ManualAuth', { useMongoClient: true });
+
+var db = mongoose.connection;
+db.on('error', console.error.bind(console, 'connection error:'));
+db.once('open', function () {
+});
+
+app.use(session({
+  secret: 'work hard',
+  resave: true,
+  saveUninitialized: false,
+  store: new MongoStore({
+    mongooseConnection: db
+  })
+}));
+
+app.set('views', path.join(__dirname, 'views'));
+app.set('view engine', 'ejs');	
+
 app.use(bodyParser.json());
-app.use(cors());
+app.use(bodyParser.urlencoded({ extended: false }));
 
-// use JWT auth to secure the api
-app.use(jwt());
+app.use(express.static(__dirname + '/views'));
 
-// api routes
-app.use('/users', require('./users/users.controller'));
+var index = require('./routes/index');
+app.use('/', index);
 
-// global error handler
-app.use(errorHandler);
+app.use(function (req, res, next) {
+  var err = new Error('File Not Found');
+  err.status = 404;
+  next(err);
+});
 
-// start server
-const port = process.env.NODE_ENV === 'production' ? 80 : 4000;
-const server = app.listen(port, function () {
-    console.log('Server listening on port ' + port);
+app.use(function (err, req, res, next) {
+  res.status(err.status || 500);
+  res.send(err.message);
+});
+
+
+app.listen(3000, function () {
+  console.log('Express app listening on port 3000');
 });
